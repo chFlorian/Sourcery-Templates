@@ -1,0 +1,44 @@
+import Combine
+import FirebaseFirestore
+import FirebaseFirestoreSwift
+
+enum FirebaseError: Error {
+    case badSnapshot
+    case cantDecode
+}
+
+enum FirebaseService {
+    static let store = Firestore.firestore()
+
+    {% for type in types.all %}
+    static func get{{ type.name }}s() -> AnyPublisher<[{{ type.name }}], Error> {
+        Future<[{{ type.name }}], Error> { promise in
+            store
+                .collection("{{ type.name }}s")
+                .getDocuments { snapshot, error in
+                    if let error = error {
+                        promise(.failure(error))
+                        return
+                    }
+                    
+                    guard let snapshot = snapshot else {
+                        promise(.failure(FirebaseError.badSnapshot))
+                        return
+                    }
+                    
+                    var results: [{{ type.name }}] = []
+                    
+                    for document in snapshot.documents {
+                        if var result = try? document.data(as:{{ type.name }}.self) {
+                            results.append(result)
+                        } else {
+                            promise(.failure(FirebaseError.cantDecode))
+                        }
+                    }
+                    
+                    promise(.success(results))
+                }
+        }
+    }
+    {% endfor %}
+}
